@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Missevan 低延迟抢评</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #111827;
+        --panel: #1f2937;
+        --panel-2: #0f172a;
+        --text: #e5e7eb;
+        --muted: #94a3b8;
+        --primary: #38bdf8;
+        --success: #22c55e;
+        --warn: #f59e0b;
+        --danger: #ef4444;
+        --border: #334155;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: linear-gradient(180deg, #020617 0%, var(--bg) 100%);
+        color: var(--text);
+      }
+
+      .page {
+        width: min(960px, calc(100vw - 32px));
+        margin: 32px auto;
+      }
+
+      .card {
+        background: rgba(31, 41, 55, 0.92);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 20px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr);
+        gap: 20px;
+        margin-top: 20px;
+        align-items: start;
+      }
+
+      .main-column,
+      .side-column {
+        min-width: 0;
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: 28px;
+      }
+
+      p {
+        margin: 0;
+        color: var(--muted);
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+        margin-top: 20px;
+      }
+
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .field.full {
+        grid-column: 1 / -1;
+      }
+
+      label {
+        font-size: 14px;
+        color: #cbd5e1;
+      }
+
+      input,
+      select,
+      textarea,
+      button {
+        font: inherit;
+      }
+
+      input,
+      select,
+      textarea {
+        width: 100%;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 12px 14px;
+        background: var(--panel-2);
+        color: var(--text);
+        outline: none;
+      }
+
+      input:focus,
+      textarea:focus {
+        border-color: var(--primary);
+      }
+
+      textarea {
+        min-height: 110px;
+        resize: vertical;
+      }
+
+      .actions {
+        display: flex;
+        gap: 12px;
+        margin-top: 20px;
+      }
+
+      button {
+        border: 0;
+        border-radius: 12px;
+        padding: 12px 18px;
+        cursor: pointer;
+        color: #020617;
+        font-weight: 600;
+      }
+
+      button.primary {
+        background: var(--primary);
+      }
+
+      button.secondary {
+        background: #cbd5e1;
+      }
+
+      button:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
+
+      .status {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: 20px;
+      }
+
+      .status-item {
+        background: var(--panel-2);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 14px;
+      }
+
+      .status-item .label {
+        color: var(--muted);
+        font-size: 12px;
+        margin-bottom: 8px;
+      }
+
+      .status-item .value {
+        font-size: 14px;
+        word-break: break-all;
+      }
+
+      .user-card {
+        background: var(--panel-2);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 16px;
+      }
+
+      .user-card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 14px;
+      }
+
+      .user-card-title {
+        font-size: 16px;
+        font-weight: 600;
+      }
+
+      .user-profile {
+        display: flex;
+        gap: 14px;
+        align-items: flex-start;
+      }
+
+      .avatar {
+        width: 72px;
+        height: 72px;
+        border-radius: 50%;
+        border: 1px solid var(--border);
+        object-fit: cover;
+        background: #0b1220;
+      }
+
+      .avatar.placeholder {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .user-meta {
+        flex: 1;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px 14px;
+      }
+
+      .user-meta-item {
+        background: rgba(15, 23, 42, 0.95);
+        border: 1px solid rgba(51, 65, 85, 0.8);
+        border-radius: 10px;
+        padding: 10px 12px;
+      }
+
+      .user-meta-item .label {
+        color: var(--muted);
+        font-size: 12px;
+        margin-bottom: 6px;
+      }
+
+      .user-meta-item .value {
+        font-size: 14px;
+        word-break: break-all;
+      }
+
+      .user-raw {
+        margin-top: 14px;
+        padding: 12px;
+        border-radius: 10px;
+        background: #020617;
+        border: 1px solid var(--border);
+        font-size: 12px;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      .result-box {
+        margin-top: 20px;
+        padding: 14px 16px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: var(--panel-2);
+      }
+
+      .result-box.success {
+        border-color: rgba(34, 197, 94, 0.55);
+        background: rgba(20, 83, 45, 0.28);
+      }
+
+      .result-box.error {
+        border-color: rgba(239, 68, 68, 0.55);
+        background: rgba(127, 29, 29, 0.25);
+      }
+
+      .result-title {
+        font-size: 15px;
+        font-weight: 600;
+        margin-bottom: 6px;
+      }
+
+      .result-detail {
+        font-size: 13px;
+        line-height: 1.6;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      .logs-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 10px;
+      }
+
+      .logs-box {
+        min-height: 320px;
+        max-height: 520px;
+        overflow: auto;
+        background: #020617;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 12px;
+      }
+
+      .log-line {
+        padding: 8px 10px;
+        border-radius: 8px;
+        margin-bottom: 8px;
+        background: rgba(15, 23, 42, 0.95);
+        border: 1px solid rgba(51, 65, 85, 0.8);
+        font-size: 13px;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      .log-line.info {
+        border-color: rgba(56, 189, 248, 0.35);
+      }
+
+      .log-line.warn {
+        border-color: rgba(245, 158, 11, 0.4);
+      }
+
+      .log-line.error {
+        border-color: rgba(239, 68, 68, 0.45);
+      }
+
+      .hint {
+        margin-top: 12px;
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      @media (max-width: 720px) {
+        .layout,
+        .grid,
+        .status {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="card">
+        <h1>Missevan 低延迟抢评</h1>
+        <p>输入 Cookie、目标集数前缀和评论内容，点击开始后会以较小间隔轮询，命中目标剧集后立即发评论。</p>
+        <div class="layout">
+          <div class="main-column">
+            <div class="grid">
+              <div class="field full">
+                <label for="cookie">Cookie</label>
+                <textarea id="cookie" placeholder="把完整 cookie 粘贴到这里"></textarea>
+              </div>
+
+              <div class="field">
+                <label for="dramaId">剧ID</label>
+                <input id="dramaId" value="86740" placeholder="例如：86740" />
+              </div>
+
+              <div class="field">
+                <label for="episodePrefix">目标集数前缀</label>
+                <input id="episodePrefix" value="第六期" placeholder="例如：第十一集" />
+              </div>
+
+              <div class="field">
+                <label for="intervalMs">轮询间隔（毫秒）</label>
+                <input id="intervalMs" type="number" min="500" step="100" value="500" />
+              </div>
+
+              <div class="field">
+                <label for="targetCommentIndex">目标位次</label>
+                <select id="targetCommentIndex">
+                  <option value="1">抢第1条评论</option>
+                  <option value="2">抢第2条评论</option>
+                </select>
+              </div>
+
+              <div class="field full">
+                <label for="comment">评论内容</label>
+                <textarea id="comment" placeholder="例如：男主好帅">男主好帅</textarea>
+              </div>
+            </div>
+
+            <div class="actions">
+              <button id="userinfoBtn" class="secondary">读取用户信息</button>
+              <button id="startBtn" class="primary">开始抢评</button>
+              <button id="stopBtn" class="secondary">停止抢评</button>
+            </div>
+
+            <div class="status" style="grid-template-columns: repeat(6, minmax(0, 1fr));">
+              <div class="status-item">
+                <div class="label">抢评状态</div>
+                <div class="value" id="runningText">未启动</div>
+              </div>
+              <div class="status-item">
+                <div class="label">剧ID</div>
+                <div class="value" id="dramaIdText">86740</div>
+              </div>
+              <div class="status-item">
+                <div class="label">匹配结果</div>
+                <div class="value" id="matchedText">暂无</div>
+              </div>
+              <div class="status-item">
+                <div class="label">最后检测时间</div>
+                <div class="value" id="lastCheckText">暂无</div>
+              </div>
+              <div class="status-item">
+                <div class="label">目标位次</div>
+                <div class="value" id="targetCommentText">第1条评论</div>
+              </div>
+              <div class="status-item">
+                <div class="label">当前主评论数</div>
+                <div class="value" id="commentCountText">暂无</div>
+              </div>
+            </div>
+
+            <div id="resultBox" class="result-box" style="display: none">
+              <div id="resultTitle" class="result-title">暂无结果</div>
+              <div id="resultDetail" class="result-detail"></div>
+            </div>
+
+            <div style="margin-top: 20px">
+              <div class="logs-header">
+                <strong>运行日志</strong>
+                <span id="logCount">0 条</span>
+              </div>
+              <div id="logsBox" class="logs-box"></div>
+            </div>
+
+            <div class="hint">
+              提示：Cookie 仅用于当前本地进程，不会写入磁盘文件；建议在抢评前提前读取用户信息并保持页面打开。
+            </div>
+          </div>
+
+          <div class="side-column">
+            <div class="user-card">
+              <div class="user-card-header">
+                <div class="user-card-title">用户信息</div>
+              </div>
+              <div class="user-profile">
+                <div id="avatarPlaceholder" class="avatar placeholder">无头像</div>
+                <img id="avatarImage" class="avatar" alt="avatar" style="display: none" />
+                <div class="user-meta">
+                  <div class="user-meta-item">
+                    <div class="label">昵称</div>
+                    <div id="nicknameText" class="value">未读取</div>
+                  </div>
+                  <div class="user-meta-item">
+                    <div class="label">UID</div>
+                    <div id="uidText" class="value">未读取</div>
+                  </div>
+                  <div class="user-meta-item">
+                    <div class="label">用户名</div>
+                    <div id="usernameText" class="value">未读取</div>
+                  </div>
+                  <div class="user-meta-item">
+                    <div class="label">接口状态</div>
+                    <div id="userStatusText" class="value">未读取</div>
+                  </div>
+                </div>
+              </div>
+              <div id="userRawText" class="user-raw">暂无用户信息</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const cookieEl = document.getElementById("cookie");
+      const dramaIdEl = document.getElementById("dramaId");
+      const episodePrefixEl = document.getElementById("episodePrefix");
+      const intervalMsEl = document.getElementById("intervalMs");
+      const targetCommentIndexEl = document.getElementById("targetCommentIndex");
+      const commentEl = document.getElementById("comment");
+      const userinfoBtn = document.getElementById("userinfoBtn");
+      const startBtn = document.getElementById("startBtn");
+      const stopBtn = document.getElementById("stopBtn");
+      const runningText = document.getElementById("runningText");
+      const dramaIdText = document.getElementById("dramaIdText");
+      const matchedText = document.getElementById("matchedText");
+      const lastCheckText = document.getElementById("lastCheckText");
+      const targetCommentText = document.getElementById("targetCommentText");
+      const commentCountText = document.getElementById("commentCountText");
+      const avatarPlaceholder = document.getElementById("avatarPlaceholder");
+      const avatarImage = document.getElementById("avatarImage");
+      const nicknameText = document.getElementById("nicknameText");
+      const uidText = document.getElementById("uidText");
+      const usernameText = document.getElementById("usernameText");
+      const userStatusText = document.getElementById("userStatusText");
+      const userRawText = document.getElementById("userRawText");
+      const resultBox = document.getElementById("resultBox");
+      const resultTitle = document.getElementById("resultTitle");
+      const resultDetail = document.getElementById("resultDetail");
+      const logsBox = document.getElementById("logsBox");
+      const logCount = document.getElementById("logCount");
+      let lastNotifiedResultKey = "";
+      let statePollTimer = null;
+
+      async function request(url, options) {
+        const response = await fetch(url, options);
+        const data = await response.json();
+        if (!response.ok || data.success === false) {
+          throw new Error(data.message || "请求失败");
+        }
+        return data;
+      }
+
+      function formatTime(value) {
+        if (!value) {
+          return "暂无";
+        }
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) {
+          return value;
+        }
+        return date.toLocaleString("zh-CN", { hour12: false });
+      }
+
+      function renderLogs(logs) {
+        logCount.textContent = `${logs.length} 条`;
+        logsBox.innerHTML = "";
+
+        if (!logs.length) {
+          logsBox.innerHTML = '<div class="log-line info">暂无日志</div>';
+          return;
+        }
+
+        logs.forEach((log) => {
+          const item = document.createElement("div");
+          item.className = `log-line ${log.level || "info"}`;
+          item.textContent = `[${formatTime(log.time)}] ${log.message}`;
+          logsBox.appendChild(item);
+        });
+
+        logsBox.scrollTop = logsBox.scrollHeight;
+      }
+
+      function renderState(data) {
+        runningText.textContent = data.running ? "运行中" : "已停止";
+        dramaIdText.textContent = data.dramaId || dramaIdEl.value || "暂无";
+        matchedText.textContent = data.matchedSoundId
+          ? `${data.matchedEpisodeName} (sound_id=${data.matchedSoundId})`
+          : "暂无";
+        lastCheckText.textContent = formatTime(data.lastCheckAt);
+        targetCommentText.textContent = `第${data.targetCommentIndex || 1}条评论`;
+        commentCountText.textContent =
+          typeof data.currentCommentCount === "number"
+            ? String(data.currentCommentCount)
+            : "暂无";
+        renderUserInfo(data.userInfo || null);
+        renderCommentResult(data.lastCommentResult || null);
+        renderLogs(Array.isArray(data.logs) ? data.logs : []);
+
+        if (data.running) {
+          startStatePolling();
+        } else {
+          stopStatePolling();
+        }
+      }
+
+      function startStatePolling() {
+        if (statePollTimer) {
+          return;
+        }
+        statePollTimer = setInterval(refreshState, 1000);
+      }
+
+      function stopStatePolling() {
+        if (!statePollTimer) {
+          return;
+        }
+        clearInterval(statePollTimer);
+        statePollTimer = null;
+      }
+
+      function renderCommentResult(result) {
+        if (!result) {
+          resultBox.style.display = "none";
+          resultBox.className = "result-box";
+          resultTitle.textContent = "暂无结果";
+          resultDetail.textContent = "";
+          return;
+        }
+
+        const statusText = result.status === "success" ? "评论成功" : "评论失败";
+        const detailLines = [
+          `时间：${formatTime(result.time)}`,
+          `剧集：${result.episodeName || "未知"}`,
+          `sound_id：${result.soundId || "未知"}`,
+          `目标位次：第${result.targetCommentIndex || 1}条评论`,
+          `当前主评论数：${
+            typeof result.currentCommentCount === "number"
+              ? result.currentCommentCount
+              : "未知"
+          }`,
+          `结果：${result.message || "未知"}`,
+        ];
+
+        resultBox.style.display = "block";
+        resultBox.className = `result-box ${result.status === "success" ? "success" : "error"}`;
+        resultTitle.textContent = statusText;
+        resultDetail.textContent = detailLines.join("\n");
+
+        const resultKey = `${result.time || ""}-${result.status || ""}-${result.message || ""}`;
+        if (resultKey && resultKey !== lastNotifiedResultKey) {
+          lastNotifiedResultKey = resultKey;
+          alert(`${statusText}\n${result.message || ""}`);
+        }
+      }
+
+      function renderUserInfo(payload) {
+        if (!payload) {
+          nicknameText.textContent = "未读取";
+          uidText.textContent = "未读取";
+          usernameText.textContent = "未读取";
+          userStatusText.textContent = "未读取";
+          userRawText.textContent = "暂无用户信息";
+          avatarImage.style.display = "none";
+          avatarImage.removeAttribute("src");
+          avatarPlaceholder.style.display = "flex";
+          return;
+        }
+
+        const info = payload.info || {};
+        const avatar = info.avatar || info.avater || "";
+
+        nicknameText.textContent = info.nickname || "未知";
+        uidText.textContent = info.uid || info.id || "未知";
+        usernameText.textContent = info.username || info.mobile || "未知";
+        userStatusText.textContent = payload.success ? "已登录/已返回" : "返回异常";
+        userRawText.textContent = JSON.stringify(payload, null, 2);
+
+        if (avatar) {
+          avatarImage.src = avatar;
+          avatarImage.style.display = "block";
+          avatarPlaceholder.style.display = "none";
+        } else {
+          avatarImage.style.display = "none";
+          avatarImage.removeAttribute("src");
+          avatarPlaceholder.style.display = "flex";
+        }
+      }
+
+      async function refreshState() {
+        try {
+          const data = await request("/api/state");
+          renderState(data);
+        } catch (error) {
+          renderLogs([
+            {
+              level: "error",
+              time: new Date().toISOString(),
+              message: error.message,
+            },
+          ]);
+        }
+      }
+
+      startBtn.addEventListener("click", async () => {
+        startBtn.disabled = true;
+        try {
+          lastNotifiedResultKey = "";
+          await request("/api/start", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              cookie: cookieEl.value,
+              dramaId: dramaIdEl.value,
+              episodePrefix: episodePrefixEl.value,
+              comment: commentEl.value,
+              targetCommentIndex: Number(targetCommentIndexEl.value),
+              intervalMs: Number(intervalMsEl.value),
+            }),
+          });
+          startStatePolling();
+          await refreshState();
+        } catch (error) {
+          alert(error.message);
+        } finally {
+          startBtn.disabled = false;
+        }
+      });
+
+      userinfoBtn.addEventListener("click", async () => {
+        userinfoBtn.disabled = true;
+        try {
+          const result = await request("/api/userinfo", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              cookie: cookieEl.value,
+              dramaId: dramaIdEl.value,
+            }),
+          });
+          renderUserInfo(result.data || null);
+          await refreshState();
+        } catch (error) {
+          alert(error.message);
+        } finally {
+          userinfoBtn.disabled = false;
+        }
+      });
+
+      stopBtn.addEventListener("click", async () => {
+        stopBtn.disabled = true;
+        try {
+          await request("/api/stop", { method: "POST" });
+          stopStatePolling();
+          await refreshState();
+        } catch (error) {
+          alert(error.message);
+        } finally {
+          stopBtn.disabled = false;
+        }
+      });
+
+      refreshState();
+    </script>
+  </body>
+</html>

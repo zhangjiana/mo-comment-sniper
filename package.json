@@ -1,0 +1,9 @@
+{
+  "name": "maoer-comment-monitor",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Missevan 剧集评论监控工具",
+  "scripts": {
+    "start": "node server.js"
+  }
+}
