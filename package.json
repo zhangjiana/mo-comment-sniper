@@ -4,6 +4,13 @@
   "private": true,
   "description": "Missevan 剧集评论监控工具",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "pm2:start": "pm2 start ecosystem.config.js",
+    "pm2:restart": "pm2 restart maoer-comment-sniper",
+    "pm2:stop": "pm2 stop maoer-comment-sniper",
+    "pm2:logs": "pm2 logs maoer-comment-sniper"
+  },
+  "devDependencies": {
+    "pm2": "^7.0.1"
   }
 }
