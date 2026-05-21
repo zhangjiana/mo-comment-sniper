@@ -373,6 +373,11 @@
                 </select>
               </div>
 
+              <div class="field">
+                <label for="testCommentMode">测试评论</label>
+                <input id="testCommentMode" type="checkbox" />
+              </div>
+
               <div class="field full">
                 <label for="comment">评论内容</label>
                 <textarea id="comment" placeholder="例如：男主好帅">男主好帅</textarea>
@@ -470,6 +475,7 @@
       const episodePrefixEl = document.getElementById("episodePrefix");
       const intervalMsEl = document.getElementById("intervalMs");
       const targetCommentIndexEl = document.getElementById("targetCommentIndex");
+      const testCommentModeEl = document.getElementById("testCommentMode");
       const commentEl = document.getElementById("comment");
       const userinfoBtn = document.getElementById("userinfoBtn");
       const startBtn = document.getElementById("startBtn");
@@ -537,13 +543,18 @@
       function renderState(data) {
         runningText.textContent = data.running ? "运行中" : "已停止";
         dramaIdText.textContent = data.dramaId || dramaIdEl.value || "暂无";
+        testCommentModeEl.checked = Boolean(data.testCommentMode);
         matchedText.textContent = data.matchedSoundId
           ? `${data.matchedEpisodeName} (sound_id=${data.matchedSoundId})`
           : "暂无";
         lastCheckText.textContent = formatTime(data.lastCheckAt);
-        targetCommentText.textContent = `第${data.targetCommentIndex || 1}条评论`;
+        targetCommentText.textContent = data.testCommentMode
+          ? "测试评论模式"
+          : `第${data.targetCommentIndex || 1}条评论`;
         commentCountText.textContent =
-          typeof data.currentCommentCount === "number"
+          data.testCommentMode
+            ? "已跳过"
+            : typeof data.currentCommentCount === "number"
             ? String(data.currentCommentCount)
             : "暂无";
         renderUserInfo(data.userInfo || null);
@@ -586,9 +597,11 @@
           `时间：${formatTime(result.time)}`,
           `剧集：${result.episodeName || "未知"}`,
           `sound_id：${result.soundId || "未知"}`,
-          `目标位次：第${result.targetCommentIndex || 1}条评论`,
+          `模式：${result.testCommentMode ? "测试评论" : `第${result.targetCommentIndex || 1}条评论`}`,
           `当前主评论数：${
-            typeof result.currentCommentCount === "number"
+            result.testCommentMode
+              ? "已跳过"
+              : typeof result.currentCommentCount === "number"
               ? result.currentCommentCount
               : "未知"
           }`,
@@ -669,6 +682,7 @@
               dramaId: dramaIdEl.value,
               episodePrefix: episodePrefixEl.value,
               comment: commentEl.value,
+              testCommentMode: testCommentModeEl.checked,
               targetCommentIndex: Number(targetCommentIndexEl.value),
               intervalMs: Number(intervalMsEl.value),
             }),

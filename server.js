@@ -3,6 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const { setTimeout: delay } = require("timers/promises");
 
+const HOST = process.env.HOST || "0.0.0.0";
 const PORT = Number(process.env.PORT || 3000);
 const DEFAULT_DRAMA_ID = "86740";
 const ADD_COMMENT_URL = "https://www.missevan.com/site/addcomment";
@@ -21,6 +22,7 @@ const state = {
   intervalMs: MIN_INTERVAL_MS,
   episodePrefix: "",
   comment: "",
+  testCommentMode: false,
   targetCommentIndex: 1,
   currentCommentCount: null,
   matchedItemId: null,
@@ -217,6 +219,7 @@ function snapshotState() {
     intervalMs: state.intervalMs,
     episodePrefix: state.episodePrefix,
     comment: state.comment,
+    testCommentMode: state.testCommentMode,
     targetCommentIndex: state.targetCommentIndex,
     currentCommentCount: state.currentCommentCount,
     matchedItemId: state.matchedItemId,
@@ -231,6 +234,7 @@ function snapshotState() {
 function resetRuntimeFields() {
   state.startTime = null;
   state.lastCheckAt = null;
+  state.testCommentMode = false;
   state.currentCommentCount = null;
   state.matchedItemId = null;
   state.matchedSoundId = null;
@@ -252,7 +256,7 @@ async function monitorLoop(taskId, config) {
   let checkCount = 0;
   let lastCommentCount = null;
   addLog(
-    `低延迟抢评已启动，剧ID：${config.dramaId}，目标前缀：${config.episodePrefix}，目标位次：第${config.targetCommentIndex}条评论，轮询间隔：${config.intervalMs}ms`
+    `低延迟抢评已启动，剧ID：${config.dramaId}，目标前缀：${config.episodePrefix}，${config.testCommentMode ? "测试评论模式" : `目标位次：第${config.targetCommentIndex}条评论`}，轮询间隔：${config.intervalMs}ms`
   );
 
   while (state.running && taskId === state.currentTaskId) {
@@ -286,11 +290,48 @@ async function monitorLoop(taskId, config) {
           setCommentResult("error", "目标剧集缺少 sound_id，无法发评论", {
             episodeName: state.matchedEpisodeName,
             soundId: state.matchedSoundId,
+            testCommentMode: config.testCommentMode,
             targetCommentIndex: config.targetCommentIndex,
           });
           stopMonitoring("缺少 sound_id，已自动停止");
           return;
         }
+      }
+
+      if (config.testCommentMode) {
+        addLog("测试评论模式：已跳过评论数校验，直接发起评论");
+        const commentResult = await addComment(
+          config.cookie,
+          state.matchedSoundId,
+          config.comment,
+          config.dramaId
+        );
+
+        if (commentResult.payload?.success) {
+          setCommentResult("success", "测试评论发送成功", {
+            episodeName: state.matchedEpisodeName,
+            soundId: state.matchedSoundId,
+            testCommentMode: true,
+          });
+          addLog("测试评论发送成功，监控结束");
+          stopMonitoring("测试评论成功，已自动停止");
+          return;
+        }
+
+        const message =
+          commentResult.payload?.info ||
+          commentResult.payload?.message ||
+          commentResult.rawText ||
+          `HTTP ${commentResult.status}`;
+
+        setCommentResult("error", `测试评论发送失败：${message}`, {
+          episodeName: state.matchedEpisodeName,
+          soundId: state.matchedSoundId,
+          testCommentMode: true,
+        });
+        addLog(`测试评论发送失败：${message}`, "error");
+        stopMonitoring("测试评论失败，已自动停止");
+        return;
       }
 
       const commentListResult = await fetchCommentList(
@@ -316,6 +357,7 @@ async function monitorLoop(taskId, config) {
           episodeName: state.matchedEpisodeName,
           soundId: state.matchedSoundId,
           currentCommentCount: state.currentCommentCount,
+          testCommentMode: false,
           targetCommentIndex: config.targetCommentIndex,
         });
         addLog(message, "warn");
@@ -332,6 +374,7 @@ async function monitorLoop(taskId, config) {
           episodeName: state.matchedEpisodeName,
           soundId: state.matchedSoundId,
           currentCommentCount: state.currentCommentCount,
+          testCommentMode: false,
           targetCommentIndex: config.targetCommentIndex,
         });
         addLog(message, "warn");
@@ -361,6 +404,7 @@ async function monitorLoop(taskId, config) {
           episodeName: state.matchedEpisodeName,
           soundId: state.matchedSoundId,
           currentCommentCount: state.currentCommentCount,
+          testCommentMode: false,
           targetCommentIndex: config.targetCommentIndex,
         });
         addLog("评论发送成功，监控结束");
@@ -378,6 +422,7 @@ async function monitorLoop(taskId, config) {
         episodeName: state.matchedEpisodeName,
         soundId: state.matchedSoundId,
         currentCommentCount: state.currentCommentCount,
+        testCommentMode: false,
         targetCommentIndex: config.targetCommentIndex,
       });
       addLog(`评论发送失败：${message}`, "error");
@@ -414,6 +459,7 @@ const server = http.createServer(async (req, res) => {
         typeof body.episodePrefix === "string" ? body.episodePrefix.trim() : "";
       const comment =
         typeof body.comment === "string" ? body.comment.trim() : "";
+      const testCommentMode = Boolean(body.testCommentMode);
       const targetCommentIndex =
         Number(body.targetCommentIndex) === 2 ? 2 : 1;
       const intervalMs = Math.max(MIN_INTERVAL_MS, Number(body.intervalMs) || MIN_INTERVAL_MS);
@@ -454,6 +500,7 @@ const server = http.createServer(async (req, res) => {
       state.intervalMs = intervalMs;
       state.episodePrefix = episodePrefix;
       state.comment = comment;
+      state.testCommentMode = testCommentMode;
       state.targetCommentIndex = targetCommentIndex;
       state.currentTaskId += 1;
 
@@ -463,6 +510,7 @@ const server = http.createServer(async (req, res) => {
         dramaId,
         episodePrefix,
         comment,
+        testCommentMode,
         targetCommentIndex,
         intervalMs,
       }).catch((error) => {
@@ -520,7 +568,8 @@ const server = http.createServer(async (req, res) => {
   sendJson(res, 404, { success: false, message: "接口不存在" });
 });
 
-server.listen(PORT, () => {
-  addLog(`服务已启动：http://localhost:${PORT}`);
-  console.log(`服务已启动：http://localhost:${PORT}`);
+server.listen(PORT, HOST, () => {
+  addLog(`服务已启动：http://${HOST}:${PORT}`);
+  console.log(`服务已启动：http://${HOST}:${PORT}`);
+  console.log(`其他机器可通过 http://服务器IP:${PORT}/ 访问`);
 });

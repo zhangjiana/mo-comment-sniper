@@ -3,13 +3,14 @@ module.exports = {
     {
       name: "maoer-comment-sniper",
       script: "server.js",
-      cwd: "/Users/zhangjohn/Documents/trae_projects/maoer",
+      cwd: "./",
       instances: 1,
       exec_mode: "fork",
       autorestart: true,
       watch: false,
       env: {
-        PORT: 3000,
+        HOST: "0.0.0.0",
+        PORT: 3003,
       },
     },
   ],
