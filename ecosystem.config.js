@@ -10,7 +10,7 @@ module.exports = {
       watch: false,
       env: {
         HOST: "0.0.0.0",
-        PORT: 3003,
+        PORT: 3004,
       },
     },
   ],
